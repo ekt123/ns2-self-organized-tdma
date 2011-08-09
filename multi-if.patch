@@ -1,0 +1,233 @@
+diff --git a/aodv/aodv.cc b/aodv/aodv.cc
+index 2a8373b..1dbf8a6 100755
+--- a/aodv/aodv.cc
++++ b/aodv/aodv.cc
+@@ -73,6 +73,26 @@ public:
+         }
+ } class_rtProtoAODV;
+ 
++void
++AODV::sendBCast(Packet *p, bool jitter) {
++  for(int i = 0; i < numifs; i++) {
++   Packet *pkt = p->copy();
++    if(jitter)
++      Scheduler::instance().schedule(targetlist[i], pkt, 0.01*Random::uniform());
++    else
++      Scheduler::instance().schedule(targetlist[i], pkt, 0);
++  }
++  Packet::free(p);
++}
++
++void
++AODV::sendPacket(Packet *p, aodv_rt_entry *rt, double time) {
++  hdr_ip * ih = HDR_IP(p);
++  if(ih->daddr() == IP_BROADCAST)
++    sendBCast(p);
++  else
++    Scheduler::instance().schedule(rt->link, p, time);
++}
+ 
+ int
+ AODV::command(int argc, const char*const* argv) {
+@@ -130,6 +150,29 @@ AODV::command(int argc, const char*const* argv) {
+ 	return TCL_OK;
+     }
+   }
++  else if(argc == 4) {
++    if(strcmp(argv[1],"if-queue") == 0) {
++      //Format: $agent if-queue queuenum queueobj
++      PriQueue * ifq = (PriQueue *) TclObject::lookup(argv[3]);
++      int num = atoi(argv[2]);
++      if(num == numifs)
++        numifs++;
++      ifqueuelist[num] = ifq;
++      if(ifq)
++        return TCL_OK;
++      return TCL_ERROR;
++    }
++    if(strcmp(argv[1],"target")==0) {
++      int num = atoi(argv[2]);
++      if(num == numifs)
++        numifs++;
++      targetlist[num] = (NsObject *) TclObject::lookup(argv[3]);
++      if(targetlist[num])
++        return TCL_OK;
++      return TCL_ERROR;
++    }
++  }
++
+   return Agent::command(argc, argv);
+ }
+ 
+@@ -151,6 +194,7 @@ AODV::AODV(nsaddr_t id) : Agent(PT_AODV),
+ 
+   logtarget = 0;
+   ifqueue = 0;
++  numifs = 0;
+ }
+ 
+ /*
+@@ -337,10 +381,24 @@ nsaddr_t broken_nbr = ch->next_hop_;
+     drop(p, DROP_RTR_MAC_CALLBACK);
+     // Do the same thing for other packets in the interface queue using the
+     // broken link -Mahesh
+-while((p = ifqueue->filter(broken_nbr))) {
+-     drop(p, DROP_RTR_MAC_CALLBACK);
+-    }	
+-    nb_delete(broken_nbr);
++    if(rt == 0){
++      for(int i = 0;i < numifs;i++){
++        ifqueue = ifqueuelist[i];
++        while((p = ifqueue->filter(broken_nbr))) {
++          drop(p, DROP_RTR_MAC_CALLBACK);
++        }
++      }
++      nb_delete(broken_nbr);
++    } else {
++      for (int i = 0;i < numifs;i++)
++        if(targetlist[i] == rt->link){
++          ifqueue = ifqueuelist[i];
++        }
++        while((p = ifqueue->filter(broken_nbr))) {
++          drop(p, DROP_RTR_MAC_CALLBACK);
++        }
++        nb_delete(broken_nbr);
++    }
+   }
+ 
+ #endif // LINK LAYER DETECTION
+@@ -962,9 +1020,16 @@ struct hdr_aodv_error *nre = HDR_AODV_ERROR(rerr);
+ 
+    // Not sure whether this is the right thing to do
+    Packet *pkt;
+-	while((pkt = ifqueue->filter(ih->saddr()))) {
+-        	drop(pkt, DROP_RTR_MAC_CALLBACK);
+-     	}
++   for(int i = 0; i < numifs; i++)
++     if(rt->link == targetlist[i]) {
++       ifqueue = ifqueuelist[i];
++       break;
++     }
++     while(pkt = ifqueue->filter(ih->saddr())) {
++       drop(pkt, DROP_RTR_MAC_CALLBACK);
++     }
++
++   rt_down(rt);
+ 
+      // if precursor list non-empty add to RERR and delete the precursor list
+      	if (!rt->pc_empty()) {
+diff --git a/aodv/aodv.h b/aodv/aodv.h
+index 837fc79..28a9013 100755
+--- a/aodv/aodv.h
++++ b/aodv/aodv.h
+@@ -187,6 +187,7 @@ class BroadcastID {
+ 
+ LIST_HEAD(aodv_bcache, BroadcastID);
+ 
++#define MAXIF 10
+ 
+ /*
+   The Routing Agent
+@@ -258,6 +259,8 @@ class AODV: public Agent {
+                                   nsaddr_t rpdst, u_int32_t rpseq,
+                                   u_int32_t lifetime, double timestamp);
+         void            sendError(Packet *p, bool jitter = true);
++        void            sendBCast(Packet *p, bool jitter = true);
++        void            sendPacket(Packet *p, aodv_rt_entry *rt, double time = 0.0);
+                                           
+         /*
+          * Packet RX Routines
+@@ -312,6 +315,9 @@ class AODV: public Agent {
+          * A pointer to the network interface queue that sits
+          * between the "classifier" and the "link layer".
+          */
++        int             numifs; //number of interfaces
++        NsObject        *targetlist[MAXIF];
++        PriQueue        *ifqueuelist[MAXIF];
+         PriQueue        *ifqueue;
+ 
+         /*
+diff --git a/aodv/aodv_rtable.h b/aodv/aodv_rtable.h
+index 114bb9a..a350d2a 100644
+--- a/aodv/aodv_rtable.h
++++ b/aodv/aodv_rtable.h
+@@ -36,6 +36,7 @@ The AODV code developed by the CMU/MONARCH group was optimized and tuned by Sami
+ #include <config.h>
+ #include <lib/bsd-list.h>
+ #include <scheduler.h>
++#include <object.h>
+ 
+ #define CURRENT_TIME    Scheduler::instance().clock()
+ #define INFINITY2        0xff
+@@ -107,6 +108,7 @@ class aodv_rt_entry {
+         u_int16_t       rt_hops;       		// hop count
+ 	int 		rt_last_hop_count;	// last valid hop count
+         nsaddr_t        rt_nexthop;    		// next hop IP address
++        NsObject *      link;           // link object to be used
+ 	/* list of precursors */ 
+         aodv_precursors rt_pclist;
+         double          rt_expire;     		// when entry expires
+diff --git a/tcl/lib/ns-lib.tcl b/tcl/lib/ns-lib.tcl
+index 870440d..f0d21f7 100644
+--- a/tcl/lib/ns-lib.tcl
++++ b/tcl/lib/ns-lib.tcl
+@@ -334,6 +334,7 @@ Simulator instproc dumper obj {
+ #                  -phyTrace OFF 
+ #                  -toraDebug OFF                
+ #                  -movementTrace OFF
++#                  -numif number-of-interfaces
+ # change wrt Mike's code
+ #                  -eotTrace OFF
+ #                  -diffusionFilter "GradientFilter/OnePhasePullFilter/GeoRoutingFilter/RmstFilter/SourceRouteFilter/LogFilter/TagFilter"
+@@ -377,6 +378,7 @@ Simulator instproc toraDebug {val} {$self set toraDebug_ $val }
+ Simulator instproc satNodeType {val} {$self set satNodeType_ $val}
+ Simulator instproc downlinkBW {val} {$self set downlinkBW_ $val}
+ Simulator instproc stopTime {val} {$self set stopTime_ $val}
++Simulator instproc numif {val} {$self set numifs $val}
+ 
+ # This method is needed so that new Routing Agents can be implemented in a dynamic
+ # library and used without having to modify Simulator::create-wireless-node
+@@ -447,6 +449,7 @@ Simulator instproc node-config args {
+         # 
+         # Since we do not handle undefined {-cmd val} pairs, we ignore 
+         # return value from init-vars{}.
++        $self instvar numifs
+         set args [eval $self init-vars $args]
+ 
+         $self instvar addressType_  routingAgent_ propType_  macTrace_ \
+diff --git a/tcl/lib/ns-mobilenode.tcl b/tcl/lib/ns-mobilenode.tcl
+index 408be67..e836811 100644
+--- a/tcl/lib/ns-mobilenode.tcl
++++ b/tcl/lib/ns-mobilenode.tcl
+@@ -189,7 +189,9 @@ Node/MobileNode instproc add-target { agent port } {
+ 	# Special processing for AODV
+ 	set aodvonly [string first "AODV" [$agent info class]] 
+ 	if {$aodvonly != -1 } {
+-		$agent if-queue [$self set ifq_(0)]   ;# ifq between LL and MAC
++		for {set i 0} {$i < [$self set nifs_]} {incr i} {
++			$agent if-queue $i [$self set ifq_($i)]   ;# ifq between LL and MAC
++		}
+ 	}
+ 	
+ 	#<zheng: add>
+@@ -362,9 +364,12 @@ Node/MobileNode instproc add-interface { channel pmodel lltype mactype qtype qle
+ 	
+ 	set ns [Simulator instance]
+ 	set imepflag [$ns imep-support]
++	set numif [$ns set numifs]
++	for {set i 0} {$i < $numif} {incr i} {
+ 	set t $nifs_
+ 	incr nifs_
+ 
++	set ret 0
+ 	set netif_($t)	[new $iftype]		;# interface
+ 	set mac_($t)	[new $mactype]		;# mac layer
+ 	set ifq_($t)	[new $qtype]		;# interface queue
+@@ -522,6 +527,7 @@ Node/MobileNode instproc add-interface { channel pmodel lltype mactype qtype qle
+ 	# Physical Channel
+ 	#
+ 	$channel addif $netif
++	}
+ 	
+         # List-based improvement
+ 	# For nodes talking to multiple channels this should
