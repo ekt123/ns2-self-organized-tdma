@@ -8,7 +8,7 @@
 #remove unnescessary headers 
 remove-all-packet-headers
 #add require header i.e. IP
-add-packet-header IP RTP ARP LL Mac HdrNbInfo TdlData TdlMsgUpdate TdlNetUpdate NetEntryMsg PollingMsg ControlMsg
+add-packet-header IP ARP LL Mac HdrNbInfo TdlData TdlMsgUpdate TdlNetUpdate NetEntryMsg PollingMsg ControlMsg
 
 # ======================================================================
 
@@ -35,15 +35,13 @@ set val(ant)            Antenna/OmniAntenna        ;# antenna model
 
 set val(ifqlen)         100                        ;# max packet in ifq
 
-set val(nn)             16                         ;# number of mobilenodes
+set val(nn)             7                         ;# number of mobilenodes
 
 set val(rp)             NOAH                       ;# routing protocol
 
-set val(x)		500000			   ;# X dimension of topology
+set val(x)		5000000			   ;# X dimension of topology
 
-set val(y)		500000			   ;# Y dimension of topology
-
-set val(ni)             1
+set val(y)		5000000			   ;# Y dimension of topology
 
 #set channel bandwidth
 Mac set bandwidth_ 5e4
@@ -183,11 +181,10 @@ proc recordSlotUtil {node_id record_time slots_reserved slots_used} {
 	global f12
 	puts $f12 "$node_id $record_time $slots_reserved $slots_used"
 }
-
 #Setup topology
 #define topology
 set topo [new Topography]
-
+$topo load_flatgrid $val(x) $val(y)
 set god_ [create-god $val(nn)]
 
 #configure node
@@ -201,10 +198,10 @@ $ns_ node-config -adhocRouting $val(rp) \
                  -phyType $val(netif) \
                  -channelType $val(chan) \
 		 -topoInstance $topo \
-		 -numif $val(ni) \
 		 -agentTrace ON \
                  -routerTrace OFF \
-                 -macTrace ON 
+                 -macTrace OFF \
+		 -movementTrace ON 
 set active_node_ 0
 for {set i 0} {$i < $val(nn) } {incr i} {
  set node_($i) [$ns_ node]
@@ -213,140 +210,91 @@ for {set i 0} {$i < $val(nn) } {incr i} {
 }
 
 # define node location
-$node_(0) set X_ 100.0
+$node_(0) set X_ 1000.0
 
-$node_(0) set Y_ 100.0
+$node_(0) set Y_ 1000.0
 
 $node_(0) set Z_ 0.0
 
 
 
-$node_(1) set X_ 300.0
+$node_(1) set X_ 501000.0
 
-$node_(1) set Y_ 300.0
+$node_(1) set Y_ 501000.0
 
 $node_(1) set Z_ 0.0
 
 
 
-$node_(2) set X_ 200.0
+$node_(2) set X_ 1000.0
  
-$node_(2) set Y_ 150.0
+$node_(2) set Y_ 1001000.0
  
 $node_(2) set Z_ 0.0
-# 
-# 
-# 
-$node_(3) set X_ 200.0
 
-$node_(3) set Y_ 250.0
+
+$node_(3) set X_ 1000.0
+
+$node_(3) set Y_ 1700.0
 
 $node_(3) set Z_ 0.0
 
 
-$node_(4) set X_ 500.0
+$node_(4) set X_ 1200.0
 
-$node_(4) set Y_ 650.0
+$node_(4) set Y_ 1800.0
 
 $node_(4) set Z_ 0.0
 
 
-$node_(5) set X_ 700.0
+$node_(5) set X_ 1300.0
 
-$node_(5) set Y_ 700.0
+$node_(5) set Y_ 1001300.0
 
 $node_(5) set Z_ 0.0
 
 
+$node_(6) set X_ 1350.0
 
-$node_(6) set X_ 800.0
-
-$node_(6) set Y_ 300.0
+$node_(6) set Y_ 1001450.0
 
 $node_(6) set Z_ 0.0
 
 
 
-$node_(7) set X_ 800.0
- 
-$node_(7) set Y_ 150.0
- 
-$node_(7) set Z_ 0.0
-# 
-# 
-# 
-$node_(8) set X_ 700.0
 
-$node_(8) set Y_ 250.0
+Application/TdlDataApp set pktsize_ 5000
+Application/TdlDataApp set msgType_ 1
 
-$node_(8) set Z_ 0.0
-
-
-$node_(9) set X_ 600.0
-
-$node_(9) set Y_ 800.0
-
-$node_(9) set Z_ 0.0
-
-
-$node_(10) set X_ 50.0
-
-$node_(10) set Y_ 800.0
-
-$node_(10) set Z_ 0.0
-
-
-$node_(11) set X_ 1000.0
-
-$node_(11) set Y_ 200.0
-
-$node_(11) set Z_ 0.0
-
-
-$node_(12) set X_ 10.0
-
-$node_(12) set Y_ 3000.0
- 
-$node_(12) set Z_ 0.0
- 
- 
-$node_(13) set X_ 10.0
- 
-$node_(13) set Y_ 20.0
- 
-$node_(13) set Z_ 0.0
- 
-
-$node_(14) set X_ 300.0
- 
-$node_(14) set Y_ 800.0
- 
-$node_(14) set Z_ 0.0
- 
- 
-$node_(15) set X_ 100.0
- 
-$node_(15) set Y_ 20.0
- 
-$node_(15) set Z_ 0.0
-
-#create some movement
-#$ns_ at 10.0 "$node_(0) setdest 150.0 150.0 10.0"
-
-
-for {set i 0} {$i < $val(nn) } {incr i} {
-#create transport agent
-set tdludp_($i) [new Agent/UDP/TdlDataUDP]
-$ns_ attach-agent $node_($i) $tdludp_($i)
-#create transport sink
-set sink_($i) [new Agent/UDP/TdlDataUDP]
-$ns_ attach-agent $node_($i) $sink_($i)
-#create application agent
-set tdldata_($i) [new Application/TdlDataApp]
-$tdldata_($i) attach-agent $tdludp_($i)
-#create application sink
-set sinkdata_($i) [new Application/TdlDataApp]
-$sinkdata_($i) attach-agent $sink_($i)
+for {set i 0} {$i < 3 } {incr i} {
+	#create transport agent
+	set tdludp_($i) [new Agent/UDP/TdlDataUDP]
+	$ns_ attach-agent $node_($i) $tdludp_($i)
+	#create transport sink
+	set sink_($i) [new Agent/UDP/TdlDataUDP]
+	$ns_ attach-agent $node_($i) $sink_($i)
+	#create application agent
+	set tdldata_($i) [new Application/TdlDataApp]
+	$tdldata_($i) attach-agent $tdludp_($i)
+	#create application sink
+	set sinkdata_($i) [new Application/TdlDataApp]
+	$sinkdata_($i) attach-agent $sink_($i)
+}
+Application/TdlDataApp set pktsize_ 50
+Application/TdlDataApp set msgType_ 3
+for {set i 3} {$i < $val(nn) } {incr i} {
+	#create transport agent
+	set tdludp_($i) [new Agent/UDP/TdlDataUDP]
+	$ns_ attach-agent $node_($i) $tdludp_($i)
+	#create transport sink
+	set sink_($i) [new Agent/UDP/TdlDataUDP]
+	$ns_ attach-agent $node_($i) $sink_($i)
+	#create application agent
+	set tdldata_($i) [new Application/TdlDataApp]
+	$tdldata_($i) attach-agent $tdludp_($i)
+	#create application sink
+	set sinkdata_($i) [new Application/TdlDataApp]
+	$sinkdata_($i) attach-agent $sink_($i)
 }
 
 
@@ -363,33 +311,58 @@ for {set i 0} {$i < $val(nn) } {incr i} {
 
 
 
+
+
+
+
 #
 
 # Tell nodes when the simulation ends
 
 #
-# This measure net entry time of node 2 when there are two existing nodes
-$ns_ at 1.0 "$tdldata_(0) start"
-$ns_ at 11.0 "$tdldata_(1) start"
-$ns_ at 25.0 "$tdldata_(2) start"
-# uncomment number of lines for testing with different number of existing node
-#$ns_ at 31.0 "$tdldata_(3) start"
-#$ns_ at 41.0 "$tdldata_(4) start"
-#$ns_ at 51.0 "$tdldata_(5) start"
-#$ns_ at 61.0 "$tdldata_(6) start"
-#$ns_ at 71.0 "$tdldata_(7) start"
-#$ns_ at 141.0 "$tdldata_(8) start"
-#$ns_ at 46.0 "$tdldata_(9) start"
-#$ns_ at 51.0 "$tdldata_(10) start"
-#$ns_ at 56.0 "$tdldata_(11) start"
-#$ns_ at 61.0 "$tdldata_(12) start"
-#$ns_ at 66.0 "$tdldata_(13) start"
-#$ns_ at 71.0 "$tdldata_(14) start"
-#$ns_ at 76.0 "$tdldata_(15) start"
 
-$ns_ at 500.5 "puts \"stop...\" ;"
-$ns_ at 500.5 "stop"
-$ns_ at 500.5 "puts \"NS EXITING...\" ; $ns_ halt"
+
+#for {set i 0} {$i < $active_node_ } {incr i} {
+
+#    $ns_ at 500.1 "$node_($i) reset";
+
+#}
+
+$ns_ at 1.0 "$tdldata_(0) start"
+$ns_ at 1.0 "$tdldata_(1) start"
+$ns_ at 1.0 "$tdldata_(2) start"
+$ns_ at 16.0 "$tdldata_(3) start"
+$ns_ at 26.0 "$tdldata_(4) start"
+$ns_ at 36.0 "$tdldata_(5) start"
+$ns_ at 46.0 "$tdldata_(6) start"
+#create some movement
+$ns_ at 60.0 "$node_(5) setdest 500200.0 500300.0 550.0"
+$ns_ at 62.0 "$node_(6) setdest 500201.0 500440.0 550.0"
+$ns_ at 65.0 "$node_(3) setdest 500350.0 500500.0 550.0"
+$ns_ at 67.0 "$node_(4) setdest 500500.0 500600.0 550.0"
+
+
+$ns_ at 1000.0 "$node_(3) setdest 2000.0 2300.0 550.0"
+$ns_ at 1000.0 "$node_(4) setdest 902001.0 500440.0 550.0"
+$ns_ at 1000.0 "$node_(5) setdest 901635.0 500500.0 550.0"
+$ns_ at 1000.0 "$node_(6) setdest 902550.0 500600.0 550.0"
+
+#$ns_ at 1500.0 "$node_(3) setdest 2000.0 2300.0 550.0"
+#$ns_ at 1500.0 "$node_(4) setdest 902001.0 500440.0 550.0"
+#$ns_ at 1500.0 "$node_(5) setdest 901635.0 500500.0 550.0"
+#$ns_ at 1500.0 "$node_(6) setdest 902550.0 500600.0 550.0"
+
+
+
+
+#change message
+$ns_ at 1640.0 "$tdldata_(5) change-message 2 1000"
+$ns_ at 1650.0 "$tdldata_(6) change-message 2 1000"
+
+
+$ns_ at 3000.5 "puts \"stop...\" ;"
+$ns_ at 3000.5 "stop"
+$ns_ at 3000.5 "puts \"NS EXITING...\" ; $ns_ halt"
 
 
 $ns_ run
