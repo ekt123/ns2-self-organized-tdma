@@ -193,7 +193,7 @@ MacDynamicTdma::MacDynamicTdma(PHY_MIB* p) :
 	   and the max number of slots (400).*/
 	bind("max_slot_num_", &max_slot_num_);
 	bind("assigned_Net_",&assigned_Net_);
-
+    bind("is_active_",&is_active_);
 
 
 
@@ -275,8 +275,10 @@ MacDynamicTdma::MacDynamicTdma(PHY_MIB* p) :
 	mhSlot_.start((Packet *) (& intr_), 0);
 
 	//Start record
-    record_time = 0;
-    recordHandler();
+	if(is_active_) {
+        record_time = 0;
+        recordHandler();
+	}
 }
 
 void MacDynamicTdma::recordHandler()
@@ -388,7 +390,7 @@ void MacDynamicTdma::recv(Packet* p, Handler* h) {
     //until the tdl application starts, then it can tx or rx in the slot
     if(ch->ptype() == PT_TDLDATA) {
     packet_arr_time =  Scheduler::instance().clock();
-    printf("MAC in %i receive packet %i size %d from Upper Layer at time %f\n",node_ID_,ch->uid(),ch->size(),Scheduler::instance().clock());
+    //printf("MAC in %i receive packet %i size %d from Upper Layer at time %f\n",node_ID_,ch->uid(),ch->size(),Scheduler::instance().clock());
     char out[100];
     sprintf(out, "recordPktArrTime %i %f", ch->uid(),Scheduler::instance().clock());
     Tcl& tcl = Tcl::instance();
@@ -412,7 +414,7 @@ void MacDynamicTdma::recv(Packet* p, Handler* h) {
     return;
     }
     if(ch->ptype() == PT_TDLMSGUPDATE) {
-        printf("MAC in %i receive message update packet %i from Upper Layer at time %f\n",node_ID_,ch->uid(),Scheduler::instance().clock());
+        //printf("MAC in %i receive message update packet %i from Upper Layer at time %f\n",node_ID_,ch->uid(),Scheduler::instance().clock());
         struct hdr_tdlmsgupdate *tdlh = hdr_tdlmsgupdate::access(p);
         node_msg_type_ = (MsgType) tdlh->newtype;
         node_msg_size_ = tdlh->newbytes;
@@ -427,12 +429,12 @@ void MacDynamicTdma::recv(Packet* p, Handler* h) {
     }
 
     if(ch->ptype() == PT_TDLNETUPDATE) {
-        printf("MAC in %i receive net update packet %i from Upper Layer at time %f\n",node_ID_,ch->uid(),Scheduler::instance().clock());
+        //printf("MAC in %i receive net update packet %i from Upper Layer at time %f\n",node_ID_,ch->uid(),Scheduler::instance().clock());
         struct hdr_tdlnetupdate *tdlh = hdr_tdlnetupdate::access(p);
         assigned_Net_ = tdlh->newnet;
         if(is_in_net) {
             // control message is required to be sent before sending any data
-            printf("****** require net entry to new net\n");
+            //printf("****** require net entry to new net\n");
             is_in_net = 0;
         }
         h->handle((Event*) 0);
@@ -776,7 +778,7 @@ void MacDynamicTdma::sendNetEntryACK() {
 
 
 
-	printf("***Node %i include %i neighbors in ACK message",node_ID_,nb->nrNB);
+	//printf("***Node %i include %i neighbors in ACK message",node_ID_,nb->nrNB);
     printf("Node %i send net entry ACK packet %i size %d bytes in slot %d at time %f\n",node_ID_,ch->uid(),ch->size(),slot_count_,Scheduler::instance().clock());
 
 	/* Start a timer that expires when the packet transmission is complete. */
@@ -1064,10 +1066,10 @@ void MacDynamicTdma::findHashAndSort(int slot_num, int vslot_num) {
     for(int i=0;i<MAX_NODE_NUM-1;i++) {
         if(table_nb_id[i]!=0x00 && table_nb_hops[i]<3) {
             idx++;
-            if(is_seed_sent)
-                printf("****************node %i with new seed %i found nb %i with seed %i\n",node_ID_,node_seed_,table_nb_id[i],table_nb_seed[i]);
-            else
-                printf("****************node %i with last seed %i found nb %i with seed %i\n",node_ID_,node_last_seed_,table_nb_id[i],table_nb_seed[i]);
+            //if(is_seed_sent)
+            //    printf("****************node %i with new seed %i found nb %i with seed %i\n",node_ID_,node_seed_,table_nb_id[i],table_nb_seed[i]);
+            //else
+            //    printf("****************node %i with last seed %i found nb %i with seed %i\n",node_ID_,node_last_seed_,table_nb_id[i],table_nb_seed[i]);
             int nbHash = hashSeed(slot_num,table_nb_seed[i]);
             hashID[idx] = table_nb_id[i];
             hashValue[idx] = nbHash;
@@ -1153,7 +1155,7 @@ int MacDynamicTdma::hashSeed(int slot_num, int seed) {
 
 
 void MacDynamicTdma::updateNeighborTable(Packet* p) {
-    printf("$$$$ Node %i is updating neighbor at time %f\n",node_ID_,Scheduler::instance().clock());
+    //printf("$$$$ Node %i is updating neighbor at time %f\n",node_ID_,Scheduler::instance().clock());
     struct hdr_mac_dynamic_tdma *mh = HDR_MAC_DYNAMIC_TDMA(p);
     struct hdr_nb_info* nb = hdr_nb_info::access(p);
     char s_id = (char) mh->srcID;
@@ -1308,7 +1310,7 @@ void MacDynamicTdma::bubbleSort2(int *arr1,char *arr2, int len)
                 temp2 = arr2[j];
                 arr1[j] = arr1[j+1];
                 arr2[j] = arr2[j+1];
-                rr1[j+1] = temp1;
+                arr1[j+1] = temp1;
                 arr2[j+1] = temp2;
                 flag = 1;               // indicates that a swap occurred.
            }
@@ -1324,26 +1326,26 @@ int MacDynamicTdma::assignSlots(int id,int msg_t,int rate) {
         case 1:
             // Message Type 1 RAP message require 1/10 s update rate with highest priority
             slotPeriod = (int) (rate/slot_time_);
-            max_msg_size = 5000;
+            max_msg_size = 10005;   // double max. size when double BW
             break;
         case 2:
             // Message Type 2 target track message require 1/2 s update rate with second highest priority
             slotPeriod = (int) (rate/slot_time_);
-            max_msg_size = 1000;
+            max_msg_size = 2005;
             break;
         case 3:
             // Message Type 3 position report message require 1/2 s update rate with lowest priority
             slotPeriod = (int) (rate/slot_time_);
-            max_msg_size = 50;
+            max_msg_size = 55;
             break;
 
         case 0:
             return 1;
             break;
     }
-            int slotPayloadSize = 211;
+            int slotPayloadSize = 516;  // use 516 for double bandwidth
             // in this algorithm, we only assign slot based on maximum allow size of each message.
-            int slotsReq = (int) ceil((double) (max_msg_size/slotPayloadSize));
+            int slotsReq = (int) ceil((double) (max_msg_size/slotPayloadSize)+0.5);
             if(slotsReq<1)
                 slotsReq=1;
             int periodCount = (int) (max_slot_num_/slotPeriod);
@@ -1351,21 +1353,49 @@ int MacDynamicTdma::assignSlots(int id,int msg_t,int rate) {
 
             int is_assigned_in_frame = 0;
             printf("Node %i Current message require %i bytes requires slot period = %i slots. %i periods in a cycle. %i blocks in a period. %i slot reserved in a period\n", id,max_msg_size,slotPeriod, periodCount, blockCount, slotsReq);
+            //guarantee 1 slot every 2 seconds
+            tdma_schedule_[(id-65)+1] = id;
+            tdma_schedule_[(id-65)+1+40] = id;
+            tdma_schedule_[(id-65)+1+80] = id;
+            tdma_schedule_[(id-65)+1+120] = id;
+            tdma_schedule_[(id-65)+1+160] = id;
             for(int i = 0;i<periodCount;i++) {
                 int current_block = 0;
                 int slotPointer = 1;
                 int slotsAssigned = 0;
                 int is_period_full = 0;
                 int is_assigned_in_period = 0;
-
+                for(int n = 0;n<slotPeriod;n++) {
+                    if(tdma_schedule_[i*slotPeriod+n]==id)
+                        slotsAssigned++;
+                }
                 int f_pos = (id-65) % 16;
                 slotPointer = f_pos;
+                //int startP = 0;
                 while(slotsAssigned<slotsReq && !is_period_full) {
 
-
+                    //printf("p %i ",slotPointer);
+                    //printf("r %i ",tdma_schedule_[i*slotPeriod+20*current_block+slotPointer+1]);
                     if(tdma_schedule_[i*slotPeriod+20*current_block+slotPointer+1]>0) {
-                        //move slot pointer
-                        slotPointer = (slotPointer+16) % 19;
+                        int cnt_blk = 0;
+                        for(int l=1;l<20;l++) {
+                            if(tdma_schedule_[i*slotPeriod+20*current_block+l]==-1)
+                                cnt_blk++;
+
+                        }
+                        if(cnt_blk==0) { //if this block full, move to next block
+                            if(current_block<blockCount-1) {
+                                current_block++;
+                                slotPointer = f_pos;
+                            } else {
+                                current_block = 0;
+                                slotPointer = f_pos;
+                            }
+                        } else {
+                            //move slot pointer
+                            slotPointer = (slotPointer+16) % 19;
+                        }
+
                     } else {
                         // if slot is free
                         // assign 1 slot
@@ -1382,27 +1412,21 @@ int MacDynamicTdma::assignSlots(int id,int msg_t,int rate) {
                             slotPointer = f_pos;
                         }
                     }
+
                     int cnt = 0;
-                    for(int k=0;k<blockCount;k++) {
-                        int cnt_blk = 0;
-                        for(int l=1;l<20;l++) {
-                            if(tdma_schedule_[i*slotPeriod+20*k+l]<=0) {
-                                cnt++;
-                                cnt_blk++;
-                            }
-                        }
-                        if(cnt_blk==0) {
-                            if(current_block<blockCount-1) {
-                                current_block++;
-                                slotPointer = f_pos;
-                            } else {
-                                current_block = 0;
-                                slotPointer = f_pos;
-                            }
-                        }
+
+
+                    for(int n = 0;n<slotPeriod;n++) {
+
+                    if(tdma_schedule_[i*slotPeriod+n]==-1)
+                        cnt++;
                     }
+                    //printf("fp %i ",cnt);
+
                     if(cnt==0)
                         is_period_full = 1;
+
+
 
                 }
 
@@ -1555,7 +1579,7 @@ void MacDynamicTdma::accessControlSlots() {
                 updateNeighbor(reqID,reqMsgT,reqSeed,1);
                 recordOneHop(reqID);
                 //reallocate slot
-                printf("******* node %i reallocate data slot after send net entry ACK\n",node_ID_);
+                //printf("******* node %i reallocate data slot after send net entry ACK\n",node_ID_);
                 allocateDataSlots();
                 // send ACK
                 sendNetEntryACK();
@@ -1566,7 +1590,7 @@ void MacDynamicTdma::accessControlSlots() {
             // if there is ne req in queue, send ACK first
             if(ctrlPkt_) {
                 //reallocate slot
-                printf("******* node %i reallocate data slot after send control ACK\n",node_ID_);
+                //printf("******* node %i reallocate data slot after send control ACK\n",node_ID_);
                 allocateDataSlots();
                 // send ACK
                 sendControlACK();
@@ -1640,7 +1664,7 @@ void MacDynamicTdma::slotHandler(Event *e)
             printf("******* node %i update neighbor table in new frame\n",node_ID_);
 		    findLeavingNodes();
 		    // reallocate data slot
-		    printf("******* node %i reallocate data slot in new frame\n",node_ID_);
+		    //printf("******* node %i reallocate data slot in new frame\n",node_ID_);
             allocateDataSlots();
 		}
 
@@ -1691,7 +1715,7 @@ void MacDynamicTdma::slotHandler(Event *e)
                 waiting_ct_slot=1;
 
             found_exist_node = 0;
-            printf("Node %i will enter net with waiting slots %i\n",node_ID_, waiting_ct_slot);
+            //printf("Node %i will enter net with waiting slots %i\n",node_ID_, waiting_ct_slot);
         }
 
 
@@ -1732,7 +1756,7 @@ void MacDynamicTdma::slotHandler(Event *e)
                         printf("Node %i is the first node in net %i\n",node_ID_,net_ID_);
                         is_in_net = 1;
                         is_net_entry = 0;
-                        printf("******* node %i allocate data slot as first node\n",node_ID_);
+                        //printf("******* node %i allocate data slot as first node\n",node_ID_);
                         allocateDataSlots();
                         nodeInNetCnt++;
                         char out[100];
@@ -1852,7 +1876,7 @@ void MacDynamicTdma::recvHandler(Event *e)
 
                         }
                         //allocate data slot
-                        printf("******* existing node %i reallocate data slot in after receive net entry ACK\n",node_ID_);
+                        //printf("******* existing node %i reallocate data slot in after receive net entry ACK\n",node_ID_);
                         allocateDataSlots();
                     }
 		        }
@@ -1927,7 +1951,7 @@ void MacDynamicTdma::recvHandler(Event *e)
             }
 		}
 		if(ch->ptype() == PT_TDLPOLL && !ch->error()) {
-		    printf("### Node %i Receive Poll at time %f\n",node_ID_,Scheduler::instance().clock());
+		    //printf("### Node %i Receive Poll at time %f\n",node_ID_,Scheduler::instance().clock());
 		    updateNeighborTable(pktRx_);
 
 		    radioSwitch(ON);
@@ -1958,7 +1982,7 @@ void MacDynamicTdma::recvHandler(Event *e)
                     }
                 }
 		    } else if(!is_in_net && is_net_entry && !is_ack_waiting) {
-                printf("New Node %i receives poll and have net entry to send\n",node_ID_,backOffOrder);
+                //printf("New Node %i receives poll and have net entry to send\n",node_ID_,backOffOrder);
                 if(findNrHops(firstRunner)==1 && findNrHops(secondRunner)==1 && findNrHops(thirdRunner)==1) {
                     is_back_off = 1;
                     mhBkOff_.start(pktRx_,3*0.010);
@@ -2005,15 +2029,15 @@ void MacDynamicTdma::backoffHandler(Event *e)
             is_control_msg_required = 0;
 
             //reallocate data slot
-            printf("******* node %i reallocate data slot in after send net control\n",node_ID_);
+            //printf("******* node %i reallocate data slot in after send net control\n",node_ID_);
             allocateDataSlots();
         } else if(nePkt_) {
             sendNetEntryACK();
-            printf("******* node %i reallocate data slot in after send net entry ACK\n",node_ID_);
+            //printf("******* node %i reallocate data slot in after send net entry ACK\n",node_ID_);
             allocateDataSlots();
         } else if(!is_in_net && is_net_entry && !is_ack_waiting) {
             sendNetEntry();
-            printf("******* node %i send net entry after receiving poll\n",node_ID_);
+            //printf("******* node %i send net entry after receiving poll\n",node_ID_);
         }
     }
 

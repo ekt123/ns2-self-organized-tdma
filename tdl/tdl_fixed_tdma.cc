@@ -127,7 +127,7 @@ MacFixTdma::MacFixTdma(PHY_MIB* p) :
 	   and the max number of slots (200), and number of nodes (16) in the simulations.*/
 	//bind("slot_packet_len_", &slot_packet_len_);
 	bind("max_slot_num_", &max_slot_num_);
-	//bind("active_node_", &active_node_);
+	bind("is_active_", &is_active_);
 
 
 
@@ -170,8 +170,10 @@ MacFixTdma::MacFixTdma(PHY_MIB* p) :
 	//Start the Slot timer..
 	mhSlot_.start((Packet *) (& intr_), 0);
 	//Start record
-    record_time = 0;
-    recordHandler();
+    if(is_active_) {
+        record_time = 0;
+        recordHandler();
+	}
 }
 
 void MacFixTdma::recordHandler()

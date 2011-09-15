@@ -70,7 +70,7 @@ struct hdr_tdlnetupdate {
 #define TDL_APP_HDR_LEN 5       // TDL data message header length
 #define TDL_UPDATE_MSG_LEN 5    // TDL message update header length
 #define TDL_UPDATE_NET_LEN 2    // TDL net update header length
-#define TDL_UDP_HDR_LEN 13      // UDP header is 18 bytes
+#define TDL_UDP_HDR_LEN 13      // UDP header is 13 bytes
 // Used for Re-assemble segmented (by UDP) tdl packet
 struct asm_tdldata {
     u_int8_t appID;

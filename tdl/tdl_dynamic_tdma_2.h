@@ -43,7 +43,7 @@ public:
 
 
 // Max data length allowed in one slot (byte)
-#define MAC_TDMA_MAX_DATA_LEN 300
+#define MAC_TDMA_MAX_DATA_LEN 600
 
 // How many time slots in one frame.
 #define MAC_TDMA_SLOT_NUM     200
@@ -475,6 +475,8 @@ private:
 	  //Net Entry time measurement variables
 	  double first_pkt_atime;
 	  double ne_ack_rtime;
+
+	  int is_active_;
 
 
 };

@@ -190,7 +190,7 @@ void TdlDataApp::recv_msg(int nbytes, const char *msg)
   // print out received message information
   if(msg) {
     hdr_tdldata* tdlh = (hdr_tdldata*) msg;
-      printf("A node with app ID %i receive tdl message from node with app ID %i at time %f\n", appIdx_, tdlh->appID,s.clock());
+      printf("A node with app ID %i receive tdl message size %i from node with app ID %i at time %f\n", appIdx_, tdlh->messagesize,tdlh->appID,s.clock());
       account_recv_pkt_info(tdlh);  // record received message
 
     }
