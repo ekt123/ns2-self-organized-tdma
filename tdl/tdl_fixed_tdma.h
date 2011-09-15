@@ -268,6 +268,8 @@ private:
       int num_slots_used;
       //schedule record
       int record_time;
+
+      int is_active_;
 };
 
 double MacFixTdma::slot_time_ = 0;

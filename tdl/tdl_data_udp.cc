@@ -101,7 +101,7 @@ void TdlDataUdpAgent::sendmsg(int nbytes, const char* flags)
 		    hdr_cmn::access(p)->size() = size_+TDL_UDP_HDR_LEN;
 		}
 
-		hdr_cmn::access(p)->timestamp() = Schedule::instance().clock();
+		hdr_cmn::access(p)->timestamp() = Scheduler::instance().clock();
 		// transport layer header
 		tdlh->seq = 0;
 		tdlh->nbytes = 0;
@@ -206,7 +206,7 @@ void TdlDataUdpAgent::recv(Packet* p, Handler*)
 			// re-assemble tdl Application packet if segmented
 
 			hdr_tdldata* tdlh = hdr_tdldata::access(p);
-			printf("UDP receive packet %d with data part size %i and total msg size is %i from node with app ID %i\n",hdr_cmn::access(p)->uid(),tdlh->datasize,tdlh->messagesize,tdlh->appID);
+			//printf("UDP receive packet %d with data part size %i and total msg size is %i from node with app ID %i\n",hdr_cmn::access(p)->uid(),tdlh->datasize,tdlh->messagesize,tdlh->appID);
 			u_int8_t aIdx = tdlh->appID;
 			if(tdlh->seq == asm_info[aIdx].seq)
 				asm_info[aIdx].rbytes += tdlh->datasize;
